@@ -16,6 +16,6 @@ Write-Host "Construyendo termsheet.exe con PyInstaller..."
     --onefile `
     --name termsheet `
     --console `
-    termsheet\app.py
+    run_termsheet.py
 
 Write-Host "Listo. Ejecutable en dist\termsheet.exe"

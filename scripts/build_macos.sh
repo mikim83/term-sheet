@@ -18,7 +18,7 @@ echo "Construyendo termsheet con PyInstaller..."
     --onefile \
     --name termsheet \
     --console \
-    termsheet/app.py
+    run_termsheet.py
 
 echo "Listo. Ejecutable en dist/termsheet"
 echo "Puedes moverlo a /usr/local/bin/termsheet para tenerlo en el PATH."
