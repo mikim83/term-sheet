@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Optional
+
 from textual.app import ComposeResult
 from textual.containers import Vertical
 from textual.screen import ModalScreen
@@ -19,7 +21,7 @@ Salir:       Ctrl+Q salir del programa
 """
 
 
-class InputDialog(ModalScreen[str | None]):
+class InputDialog(ModalScreen[Optional[str]]):
     """Diálogo modal genérico de una línea: ir a celda, buscar, guardar como, abrir."""
 
     DEFAULT_CSS = """
@@ -81,7 +83,7 @@ class HelpDialog(ModalScreen[None]):
             self.dismiss(None)
 
 
-class ThemeDialog(ModalScreen[str | None]):
+class ThemeDialog(ModalScreen[Optional[str]]):
     DEFAULT_CSS = """
     ThemeDialog {
         align: center middle;
