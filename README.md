@@ -46,6 +46,7 @@ Google Sheets no se abre directamente por URL: en Google Sheets ve a **Archivo â
 | `Ctrl+F` | Buscar |
 | `Ctrl+T` | Cambiar tema de color |
 | `F1` | Ayuda de atajos |
+| `Ctrl+Q` | Salir del programa |
 
 ## FÃ³rmulas soportadas
 

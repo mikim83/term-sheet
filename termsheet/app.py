@@ -45,6 +45,7 @@ class TermSheetApp(App):
     """
 
     BINDINGS = [
+        Binding("ctrl+q", "quit", "Salir"),
         Binding("ctrl+s", "save", "Guardar"),
         Binding("ctrl+o", "open", "Abrir"),
         Binding("ctrl+n", "new_sheet", "Nueva hoja"),
