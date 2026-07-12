@@ -28,7 +28,7 @@ termsheet/
   grid.py                 # SheetGrid: DataTable de Textual, navegación y render
   app.py                  # TermSheetApp: bindings de teclado, orquesta todo lo anterior
 tests/                   # pytest — un archivo por módulo del modelo
-scripts/                 # build_windows.ps1, build_macos.sh (PyInstaller)
+scripts/                 # build_windows.ps1, build_macos.sh, build_linux.sh (PyInstaller)
 ```
 
 El modelo (`model/`) es independiente de Textual a propósito — así se puede testear fórmulas, undo y xlsx sin levantar la UI. Nunca importes Textual dentro de `model/` ni `io/`.
@@ -87,4 +87,4 @@ Este patrón (crear la app, `run_test()`, `pilot.press(...)`, `pilot.pause()` tr
 
 1. Corre `pytest tests/ -q` — deben seguir pasando los tests existentes y cualquiera nuevo que añadas para la función/comportamiento tocado.
 2. Si tocaste teclado o UI, verifica con el patrón headless de arriba el flujo concreto que cambiaste.
-3. Si el cambio afecta al empaquetado (nuevas dependencias en `pyproject.toml`), recuerda que `scripts/build_windows.ps1` y `scripts/build_macos.sh` instalan desde `pyproject.toml` — no hace falta tocarlos salvo que cambie el punto de entrada.
+3. Si el cambio afecta al empaquetado (nuevas dependencias en `pyproject.toml`), recuerda que los tres scripts (`build_windows.ps1`, `build_macos.sh`, `build_linux.sh`) instalan desde `pyproject.toml` y apuntan a `run_termsheet.py` (no a `termsheet/app.py` directamente — PyInstaller rompe los imports relativos si apunta al módulo dentro del paquete). No hace falta tocarlos salvo que cambie el punto de entrada.

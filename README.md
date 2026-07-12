@@ -87,3 +87,12 @@ chmod +x scripts/build_macos.sh
 ```
 
 Genera `dist/termsheet`, ejecutable sin necesidad de tener Python instalado. Puedes moverlo a `/usr/local/bin/termsheet` para tenerlo en el `PATH`.
+
+**Linux**, con Python instalado:
+
+```bash
+chmod +x scripts/build_linux.sh
+./scripts/build_linux.sh
+```
+
+Genera `dist/termsheet`, ejecutable sin necesidad de tener Python instalado. Puedes moverlo a `/usr/local/bin/termsheet` para tenerlo en el `PATH`.
