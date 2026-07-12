@@ -2,7 +2,7 @@
 name = "termsheet"
 version = "0.1.0"
 description = "Hoja de cálculo en terminal, 100% teclado, compatible con .xlsx"
-requires-python = ">=3.11"
+requires-python = ">=3.9"
 dependencies = [
     "textual>=0.60.0",
     "openpyxl>=3.1.0",
