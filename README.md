@@ -69,12 +69,21 @@ Cinco temas incluidos, seleccionables con `Ctrl+T` (se recuerda el último usado
 pytest tests/
 ```
 
-## Empaquetar como .exe para Windows
+## Empaquetar como ejecutable standalone
 
-Desde Windows, con Python instalado:
+**Windows**, con Python instalado:
 
 ```powershell
 powershell -ExecutionPolicy Bypass -File scripts\build_windows.ps1
 ```
 
 Genera `dist\termsheet.exe`, ejecutable sin necesidad de tener Python instalado.
+
+**macOS**, con Python instalado (Homebrew o python.org):
+
+```bash
+chmod +x scripts/build_macos.sh
+./scripts/build_macos.sh
+```
+
+Genera `dist/termsheet`, ejecutable sin necesidad de tener Python instalado. Puedes moverlo a `/usr/local/bin/termsheet` para tenerlo en el `PATH`.
