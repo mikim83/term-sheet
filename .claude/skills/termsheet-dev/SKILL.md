@@ -45,6 +45,10 @@ El modelo (`model/`) es independiente de Textual a propósito — así se puede 
 
 **Cambiar undo/redo o portapapeles**: usa siempre el patrón Command (`model/undo.py`) para cualquier mutación de celdas desde la UI — nunca llames a `sheet.set_raw()` directamente desde `app.py`, pasa por `self.undo_stack.execute(SetCellCommand(...))` o `BulkSetCommand(...)` para que quede en la pila de deshacer.
 
+## La grilla y los índices de fila/columna
+
+`SheetGrid` (`grid.py`) usa las **row labels nativas** de `DataTable` (`label=` en `add_row`, `show_row_labels=True`) para los números de fila, y las cabeceras nativas de columna (`add_column(letra, ...)`) para las letras A, B, C... **Nunca vuelvas a añadir una columna de datos falsa para el índice de fila** (hubo una regresión así: una columna `"rownum"` era navegable como si fuera una celda normal, y editarla crasheaba con `CellDoesNotExist` porque no existía en el modelo). Las row labels y las cabeceras de columna no son celdas navegables — el cursor solo puede moverse dentro del rango real de datos (columnas 1..n_cols, filas 1..n_rows), lo cual está cubierto por `tests/test_grid_ui.py`.
+
 ## Recalculo de fórmulas
 
 El motor (`model/formula_engine.py::Engine`) no mantiene un grafo de dependencias persistente: `Engine.recalculate()` reevalúa todas las celdas fórmula del workbook de forma perezosa y memoizada, con detección de ciclos vía un set `_visiting`. Esto significa que **después de cualquier cambio de celda hay que llamar a `self.engine.recalculate()` y luego `grid.refresh_from_sheet(sheet)`** — mira cualquier `action_*` en `app.py` que edite celdas como plantilla (siguen todas el mismo patrón: `undo_stack.execute(...)` → `engine.recalculate()` → `grid.refresh_from_sheet(sheet)` → `refresh_status()`).

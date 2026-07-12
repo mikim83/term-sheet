@@ -17,17 +17,17 @@ class SheetGrid(DataTable):
         super().__init__(**kwargs)
         self.cursor_type = "cell"
         self.zebra_stripes = False
+        self.show_row_labels = True
         self.n_rows = DEFAULT_ROWS
         self.n_cols = DEFAULT_COLS
 
     def build(self) -> None:
         self.clear(columns=True)
-        self.add_column("", key="rownum", width=5)
         for c in range(1, self.n_cols + 1):
             self.add_column(col_to_letters(c), key=f"c{c}", width=10)
         for r in range(1, self.n_rows + 1):
-            row_values = [str(r)] + ["" for _ in range(self.n_cols)]
-            self.add_row(*row_values, key=f"r{r}")
+            row_values = ["" for _ in range(self.n_cols)]
+            self.add_row(*row_values, key=f"r{r}", label=str(r))
 
     def refresh_from_sheet(self, sheet: Sheet) -> None:
         # Clear all data cells first (cheap enough for the default grid size).
@@ -40,9 +40,9 @@ class SheetGrid(DataTable):
 
     def selected_coord(self) -> tuple[int, int]:
         coord: Coordinate = self.cursor_coordinate
-        return coord.row + 1, coord.column  # row 1-indexed, column already skips rownum col
+        return coord.row + 1, coord.column + 1  # both 1-indexed; row labels aren't a real column
 
     def move_to(self, row: int, col: int) -> None:
         row = max(1, min(row, self.n_rows))
         col = max(1, min(col, self.n_cols))
-        self.cursor_coordinate = Coordinate(row - 1, col)
+        self.cursor_coordinate = Coordinate(row - 1, col - 1)
