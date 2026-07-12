@@ -12,7 +12,7 @@ Rangos:      Shift+flechas seleccionar · Ctrl+C copiar · Ctrl+X cortar · Ctrl
 Deshacer:    Ctrl+Z deshacer · Ctrl+Y rehacer
 Archivo:     Ctrl+S guardar · Ctrl+O abrir · Ctrl+N nueva hoja
 Buscar:      Ctrl+G ir a celda · Ctrl+F buscar
-Hojas:       Ctrl+PageUp/PageDown cambiar de hoja
+Hojas:       Alt+PageUp/PageDown cambiar de hoja
 Vista:       Ctrl+T cambiar tema de color
 Ayuda:       F1 esta ayuda · Esc o F1 para cerrar
 Salir:       Ctrl+Q salir del programa

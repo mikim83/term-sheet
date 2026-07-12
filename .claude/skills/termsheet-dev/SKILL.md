@@ -39,7 +39,14 @@ El modelo (`model/`) es independiente de Textual a propósito — así se puede 
 
 **Añadir un tema de color**: añade una entrada `Theme(...)` en `THEMES` y su key en `THEME_ORDER`, en `ui/themes.py`. El selector (`Ctrl+T`) y la persistencia en `config.py` ya recorren `THEME_ORDER` automáticamente, no hace falta tocar nada más.
 
-**Añadir un atajo de teclado**: añade un `Binding(...)` en `TermSheetApp.BINDINGS` (`app.py`) y su método `action_xxx`. Ojo: `DataTable` (la clase base de `SheetGrid`) ya captura `enter`, las flechas, `pageup/down`, `home/end` y `ctrl+home/end` para su propia navegación — si necesitas interceptar una de esas teclas, hazlo vía el mensaje correspondiente (`on_data_table_cell_selected`, `on_data_table_cell_highlighted`) en vez de un `Binding`, porque el binding nunca burbujeará desde el widget con foco hasta la App.
+**Añadir un atajo de teclado**: añade un `Binding(...)` en `TermSheetApp.BINDINGS` (`app.py`) y su método `action_xxx`. Ojo con dos trampas relacionadas con que `SheetGrid` (DataTable) casi siempre tiene el foco:
+
+1. `DataTable` captura `enter`, las flechas, `pageup/down`, `home/end` y `ctrl+home/end` para su propia navegación — si necesitas interceptar una de esas teclas exactas, hazlo vía el mensaje correspondiente (`on_data_table_cell_selected`, `on_data_table_cell_highlighted`) en vez de un `Binding`, porque el binding de la App nunca burbujeará desde el widget con foco.
+2. **Colisiones heredadas no obvias**: `DataTable` hereda de `ScrollView`, que trae bindings propios como `ctrl+pageup`/`ctrl+pagedown` (paginado horizontal) que no aparecen listados en `DataTable.BINDINGS` a simple vista. Un `Binding` en `TermSheetApp` con esa misma tecla se registra sin error, pero nunca se ejecuta: el chequeo de bindings recorre la cadena desde el widget con foco hacia arriba (`Screen._modal_binding_chain`), así que el binding del widget enfocado gana silenciosamente y el de la App queda "muerto". Esto pasó de verdad con `Ctrl+PageUp`/`Ctrl+PageDown` para cambiar de hoja (ahora son `Alt+PageUp`/`Alt+PageDown`). Antes de elegir una tecla nueva, verifica que no colisiona:
+   ```python
+   for namespace, bindings in app.screen._modal_binding_chain:
+       print(namespace, bindings.key_to_bindings.get("tu+tecla", ()))
+   ```
 
 **Cambiar el formato de guardado/lectura .xlsx**: todo vive en `io/xlsx_io.py`. `load_workbook` puebla el modelo a partir de un `openpyxl.Workbook` (usa `data_only=False` para preservar fórmulas, no valores calculados). `save_workbook` hace el camino inverso. Si tocas esto, verifica siempre con un test de round-trip (guardar y volver a cargar debe preservar fórmulas y multi-hoja) — hay un ejemplo en `tests/test_xlsx_io.py`.
 
