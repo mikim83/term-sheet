@@ -13,9 +13,10 @@ Write-Host "Instalando dependencias..."
 
 Write-Host "Construyendo termsheet.exe con PyInstaller..."
 .\.venv-build\Scripts\pyinstaller `
-    --onefile `
+    --onedir `
     --name termsheet `
     --console `
     run_termsheet.py
 
-Write-Host "Listo. Ejecutable en dist\termsheet.exe"
+Write-Host "Listo. Ejecutable en dist\termsheet\termsheet.exe"
+Write-Host "Se genera una carpeta (no un .exe suelto) para que arranque al instante: --onedir evita la auto-extraccion de --onefile en cada ejecucion. Copia toda la carpeta dist\termsheet si la mueves a otro sitio."

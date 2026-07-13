@@ -8,16 +8,53 @@ from textual.screen import ModalScreen
 from textual.widgets import Input, Label, Static
 
 HELP_TEXT = """\
-Navegación:  flechas / hjkl · PageUp/PageDown · Home/End · Ctrl+Home (A1)
-Edición:     Enter/F2 editar · Esc cancelar · Tab confirma y avanza
-Rangos:      Shift+flechas seleccionar · Ctrl+C copiar · Ctrl+X cortar · Ctrl+V pegar
-Deshacer:    Ctrl+Z deshacer · Ctrl+Y rehacer
-Archivo:     Ctrl+S guardar · Ctrl+O abrir · Ctrl+N nueva hoja
-Buscar:      Ctrl+G ir a celda · Ctrl+F buscar
-Hojas:       Alt+PageUp/PageDown cambiar de hoja
-Vista:       Ctrl+T cambiar tema de color
-Ayuda:       F1 esta ayuda · Esc o F1 para cerrar
-Salir:       Ctrl+Q salir del programa
+NAVEGACIÓN
+  Flechas               Mover el cursor una celda
+  PageUp / PageDown     Subir / bajar una página
+  Home / End            Principio / fin de la fila
+  Ctrl+Home             Ir a A1
+  Ctrl+G                Ir a una celda por nombre (ej. B12)
+  Ctrl+F                Buscar texto en la hoja activa
+
+EDICIÓN
+  Enter / F2            Editar la celda actual
+  Esc                   Cancelar la edición en curso
+  Tab                   Confirma la edición y avanza a la derecha
+  Delete                Borrar el contenido de la celda o selección
+
+SELECCIÓN DE RANGO (varias celdas a la vez)
+  Shift+flechas         Extiende la selección desde la celda actual.
+                        Ojo: algunos terminales (sobre todo en macOS) no
+                        distinguen Shift+flecha de una flecha normal y esta
+                        combinación puede no hacer nada — en ese caso usa F8.
+  F8                    Alternativa a Shift+flechas: activa "modo selección"
+                        (igual que en Excel). Con el modo activo, las flechas
+                        normales extienden la selección; pulsa F8 otra vez
+                        para desactivarlo. Funciona en cualquier terminal.
+  Ctrl+C / Ctrl+X       Copiar / cortar la celda o el rango seleccionado
+  Ctrl+V                Pegar en la celda actual (esquina superior izquierda)
+
+FORMATO
+  Ctrl+1                Formato de celda: moneda (varios tipos) o fecha
+                        DD/MM/AAAA, aplicado a la celda o rango seleccionado
+
+DESHACER
+  Ctrl+Z / Ctrl+Y       Deshacer / rehacer (incluye contenido y formato)
+
+ARCHIVO
+  Ctrl+S                Guardar como .xlsx
+  Ctrl+O                Abrir un .xlsx (incluye los exportados de Google Sheets)
+
+HOJAS
+  Ctrl+N                Nueva hoja (pestaña) en este mismo libro
+  Ctrl+R                Renombrar la hoja activa
+  Alt+PageUp/PageDown   Cambiar a la hoja anterior/siguiente
+                        (la hoja activa aparece resaltada en la barra inferior)
+
+VISTA Y AYUDA
+  Ctrl+T                Cambiar el tema de color
+  F1                    Esta ayuda · Esc o F1 para cerrar
+  Ctrl+Q                Salir del programa
 """
 
 
@@ -65,11 +102,13 @@ class HelpDialog(ModalScreen[None]):
         align: center middle;
     }
     #help_box {
-        width: 70;
+        width: 78;
         height: auto;
+        max-height: 90%;
         border: round $accent;
         padding: 1 2;
         background: $surface;
+        overflow-y: auto;
     }
     """
 
@@ -83,13 +122,16 @@ class HelpDialog(ModalScreen[None]):
             self.dismiss(None)
 
 
-class ThemeDialog(ModalScreen[Optional[str]]):
+class ChoiceDialog(ModalScreen[Optional[str]]):
+    """Diálogo modal de lista: flechas/hjkl para moverse, Enter elige, Esc cancela.
+    Usado tanto para el selector de tema como para el de formato de celda."""
+
     DEFAULT_CSS = """
-    ThemeDialog {
+    ChoiceDialog {
         align: center middle;
     }
-    #theme_box {
-        width: 50;
+    #choice_box {
+        width: 55;
         height: auto;
         border: round $accent;
         padding: 1 2;
@@ -97,20 +139,21 @@ class ThemeDialog(ModalScreen[Optional[str]]):
     }
     """
 
-    def __init__(self, themes: list[tuple[str, str]], current: str):
+    def __init__(self, prompt: str, choices: list[tuple[str, str]], current: str | None):
         super().__init__()
-        self.themes = themes
-        self.current = current
+        self.prompt = prompt
+        self.choices = choices
+        self.current = current if current is not None else choices[0][0]
 
     def compose(self) -> ComposeResult:
-        with Vertical(id="theme_box"):
-            yield Label("Elige un tema (flechas + Enter, Esc cancela)")
-            for key, label in self.themes:
+        with Vertical(id="choice_box"):
+            yield Label(self.prompt)
+            for key, label in self.choices:
                 marker = "›" if key == self.current else " "
-                yield Static(f"{marker} {label}", id=f"theme_{key}")
+                yield Static(f"{marker} {label}", id=f"choice_{key}")
 
     def on_key(self, event) -> None:
-        keys = [k for k, _ in self.themes]
+        keys = [k for k, _ in self.choices]
         if event.key == "escape":
             self.dismiss(None)
         elif event.key in ("down", "j"):
@@ -125,7 +168,7 @@ class ThemeDialog(ModalScreen[Optional[str]]):
             self.dismiss(self.current)
 
     def _refresh_markers(self) -> None:
-        for key, label in self.themes:
-            widget = self.query_one(f"#theme_{key}", Static)
+        for key, label in self.choices:
+            widget = self.query_one(f"#choice_{key}", Static)
             marker = "›" if key == self.current else " "
             widget.update(f"{marker} {label}")

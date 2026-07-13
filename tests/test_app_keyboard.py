@@ -248,3 +248,150 @@ def test_ctrl_q_quits_the_app():
     running_before, running_after = run(scenario())
     assert running_before is True
     assert running_after is False
+
+
+# -- Modo de selección F8 (alternativa a Shift+flechas) ---------------------
+
+
+def test_f8_toggle_select_mode_lets_plain_arrows_extend_selection():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            grid.move_to(3, 3)
+            await pilot.press("f8")
+            await pilot.pause()
+            mode_on = app.select_mode
+            await pilot.press("right", "right", "down")
+            await pilot.pause()
+            bounds_while_on = app._selection_bounds()
+            await pilot.press("f8")
+            await pilot.pause()
+            mode_off = app.select_mode
+            return mode_on, bounds_while_on, mode_off
+
+    mode_on, bounds, mode_off = run(scenario())
+    assert mode_on is True
+    assert bounds == (3, 3, 4, 5)  # C3:E4
+    assert mode_off is False
+
+
+def test_plain_arrow_after_leaving_select_mode_collapses_selection():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            grid.move_to(3, 3)
+            await pilot.press("f8")
+            await pilot.press("right")
+            await pilot.press("f8")
+            await pilot.pause()
+            await pilot.press("right")
+            await pilot.pause()
+            return app.anchor
+
+    assert run(scenario()) is None
+
+
+# -- Formato de celda (Ctrl+1) -----------------------------------------------
+
+
+def test_ctrl_1_applies_currency_format_to_selection():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            sheet = app.workbook.active_sheet
+            sheet.set_raw(1, 1, "1234.5")
+            app.engine.recalculate()
+            grid.refresh_from_sheet(sheet)
+
+            grid.move_to(1, 1)
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            await pilot.press("down")  # General -> Euro (1.234,56 €)
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()  # ciclo extra: el callback del diálogo es asíncrono
+            return sheet.get_cell(1, 1).fmt.number_format, sheet.get_cell(1, 1).display()
+
+    number_format, display = run(scenario())
+    assert number_format == "eur_es"
+    assert display == "1.234,50 €"
+
+
+def test_ctrl_1_format_applies_to_whole_range_and_is_undoable():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            sheet = app.workbook.active_sheet
+            sheet.set_raw(1, 1, "10")
+            sheet.set_raw(1, 2, "20")
+            app.engine.recalculate()
+            grid.refresh_from_sheet(sheet)
+
+            grid.move_to(1, 1)
+            await pilot.press("shift+right")
+            await pilot.pause()
+            await pilot.press("ctrl+1")
+            await pilot.pause()
+            await pilot.press("down", "down")  # General -> eur_es -> eur_prefix
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+            formats_after = (sheet.get_cell(1, 1).fmt.number_format, sheet.get_cell(1, 2).fmt.number_format)
+
+            await pilot.press("ctrl+z")
+            await pilot.pause()
+            formats_undone = (sheet.get_cell(1, 1).fmt.number_format, sheet.get_cell(1, 2).fmt.number_format)
+            return formats_after, formats_undone
+
+    formats_after, formats_undone = run(scenario())
+    assert formats_after == ("eur_prefix", "eur_prefix")
+    assert formats_undone == (None, None)
+
+
+# -- Renombrar hoja (Ctrl+R) --------------------------------------------------
+
+
+def test_ctrl_r_renames_active_sheet():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+r")
+            await pilot.pause()
+            from textual.widgets import Input
+
+            dialog_input = app.screen.query_one("#dialog_input", Input)
+            dialog_input.value = "Gastos"
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+            return app.workbook.active_sheet.name
+
+    assert run(scenario()) == "Gastos"
+
+
+def test_ctrl_r_with_empty_name_keeps_original():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            await pilot.press("ctrl+r")
+            await pilot.pause()
+            from textual.widgets import Input
+
+            dialog_input = app.screen.query_one("#dialog_input", Input)
+            dialog_input.value = ""
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+            return app.workbook.active_sheet.name
+
+    assert run(scenario()) == "Hoja1"

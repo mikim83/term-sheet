@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .formatting import format_display
+
 
 @dataclass
 class CellFormat:
@@ -28,6 +30,9 @@ class Cell:
     def display(self) -> str:
         if self.error:
             return self.error
+        formatted = format_display(self.fmt.number_format, self.raw, self.value)
+        if formatted is not None:
+            return formatted
         if self.value is None:
             return ""
         if isinstance(self.value, float):

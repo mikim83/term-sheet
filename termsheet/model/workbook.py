@@ -19,6 +19,14 @@ class Sheet:
     def get_cell(self, row: int, col: int) -> Cell:
         return self.cells.get((row, col), Cell())
 
+    def ensure_cell(self, row: int, col: int) -> Cell:
+        """Como get_cell, pero crea y guarda la celda si no existía (para
+        poder aplicarle formato aunque esté vacía)."""
+        cell = self.cells.setdefault((row, col), Cell())
+        self.max_row = max(self.max_row, row)
+        self.max_col = max(self.max_col, col)
+        return cell
+
     def get_raw(self, row: int, col: int) -> str:
         cell = self.cells.get((row, col))
         return cell.raw if cell else ""

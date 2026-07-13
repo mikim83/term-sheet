@@ -47,6 +47,26 @@ class BulkSetCommand(Command):
             self.sheet.set_raw(row, col, old_raw)
 
 
+@dataclass
+class SetFormatCommand(Command):
+    """Aplica un formato de número (moneda/fecha) a un rango de celdas."""
+
+    sheet: object
+    cells: list[tuple[int, int]]
+    new_format: str | None
+    old_formats: dict[tuple[int, int], str | None] = field(default_factory=dict, init=False)
+
+    def do(self) -> None:
+        for row, col in self.cells:
+            cell = self.sheet.ensure_cell(row, col)
+            self.old_formats[(row, col)] = cell.fmt.number_format
+            cell.fmt.number_format = self.new_format
+
+    def undo(self) -> None:
+        for (row, col), old_format in self.old_formats.items():
+            self.sheet.ensure_cell(row, col).fmt.number_format = old_format
+
+
 class UndoStack:
     def __init__(self, limit: int = 100):
         self.limit = limit

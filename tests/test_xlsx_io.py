@@ -27,3 +27,24 @@ def test_roundtrip_preserves_formulas_and_multi_sheet():
         eng = Engine(wb2)
         eng.recalculate()
         assert datos.get_cell(1, 2).value == 10
+
+
+def test_roundtrip_preserves_currency_and_date_format():
+    wb = Workbook(sheets=[])
+    sheet = wb.add_sheet("Datos")
+    sheet.set_raw(1, 1, "1234.5")
+    sheet.get_cell(1, 1).fmt.number_format = "eur_es"
+    sheet.set_raw(2, 1, "2026-07-13")
+    sheet.get_cell(2, 1).fmt.number_format = "date_dmy"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "formatos.xlsx")
+        save_workbook(wb, path)
+
+        wb2 = load_workbook(path)
+        datos = wb2.sheet_by_name("Datos")
+        Engine(wb2).recalculate()
+        assert datos.get_cell(1, 1).fmt.number_format == "eur_es"
+        assert datos.get_cell(1, 1).display() == "1.234,50 €"
+        assert datos.get_cell(2, 1).fmt.number_format == "date_dmy"
+        assert datos.get_cell(2, 1).display() == "13/07/2026"

@@ -14,10 +14,11 @@ from .clipboard import RangeClipboard
 from .grid import SheetGrid
 from .io.xlsx_io import load_workbook, save_workbook
 from .model.coords import a1_to_coord, coord_to_a1
+from .model.formatting import FORMAT_ORDER, label_for
 from .model.formula_engine import Engine
-from .model.undo import BulkSetCommand, SetCellCommand, UndoStack
+from .model.undo import BulkSetCommand, SetCellCommand, SetFormatCommand, UndoStack
 from .model.workbook import Workbook
-from .ui.dialogs import HelpDialog, InputDialog, ThemeDialog
+from .ui.dialogs import ChoiceDialog, HelpDialog, InputDialog
 from .ui.statusbar import StatusBar
 from .ui.themes import THEME_ORDER, get_theme
 
@@ -59,6 +60,9 @@ class TermSheetApp(App):
         Binding("ctrl+v", "paste", "Pegar"),
         Binding("f1", "help", "Ayuda"),
         Binding("f2", "edit_cell", "Editar"),
+        Binding("f8", "toggle_select_mode", "Modo selección"),
+        Binding("ctrl+1", "format_cell", "Formato de celda"),
+        Binding("ctrl+r", "rename_sheet", "Renombrar hoja"),
         Binding("delete", "delete_selection", "Borrar"),
         Binding("alt+pagedown", "next_sheet", "Hoja siguiente", show=False),
         Binding("alt+pageup", "prev_sheet", "Hoja anterior", show=False),
@@ -77,6 +81,7 @@ class TermSheetApp(App):
         self.theme_key = config.load_theme()
         self.anchor: tuple[int, int] | None = None
         self.editing = False
+        self.select_mode = False
 
     def compose(self) -> ComposeResult:
         yield Input(id="formula_bar")
@@ -118,7 +123,9 @@ class TermSheetApp(App):
                 self.refresh_status()
 
         theme_list = [(k, get_theme(k).label) for k in THEME_ORDER]
-        self.push_screen(ThemeDialog(theme_list, self.theme_key), on_choice)
+        self.push_screen(
+            ChoiceDialog("Elige un tema (flechas + Enter, Esc cancela)", theme_list, self.theme_key), on_choice
+        )
 
     # -- status / tabs -----------------------------------------------------
 
@@ -128,15 +135,22 @@ class TermSheetApp(App):
         sheet = self.workbook.active_sheet
         addr = coord_to_a1(row, col)
         raw = sheet.get_raw(row, col)
-        mode = "EDIT" if self.editing else "NAV"
+        if self.editing:
+            mode = "EDIT"
+        elif self.select_mode:
+            mode = "NAV·SEL (F8)"
+        else:
+            mode = "NAV"
         self.query_one(StatusBar).set_status(addr, mode, raw, sheet.name, get_theme(self.theme_key).label)
 
     def refresh_sheet_tabs(self) -> None:
-        names = []
+        parts = []
         for i, sheet in enumerate(self.workbook.sheets):
-            marker = f"[{sheet.name}]" if i == self.workbook.active_index else sheet.name
-            names.append(marker)
-        self.query_one("#sheet_tabs", Static).update("  ".join(names))
+            if i == self.workbook.active_index:
+                parts.append(f"[reverse bold] {sheet.name} [/reverse bold]")
+            else:
+                parts.append(f" {sheet.name} ")
+        self.query_one("#sheet_tabs", Static).update(" ".join(parts))
 
     # -- navigation / selection --------------------------------------------
 
@@ -159,6 +173,20 @@ class TermSheetApp(App):
 
     def action_extend_right(self) -> None:
         self._extend(0, 1)
+
+    def action_toggle_select_mode(self) -> None:
+        """Modo de selección estilo Excel (F8): útil cuando Shift+flechas no
+        llega a la app (algunos terminales no distinguen esas combinaciones).
+        Mientras está activo, las flechas normales extienden la selección en
+        vez de moverse sueltas."""
+        grid = self.query_one(SheetGrid)
+        if self.select_mode:
+            self.select_mode = False
+        else:
+            self.select_mode = True
+            if self.anchor is None:
+                self.anchor = grid.selected_coord()
+        self.refresh_status()
 
     def on_data_table_cell_highlighted(self, event) -> None:
         self.refresh_status()
@@ -203,7 +231,7 @@ class TermSheetApp(App):
             self.refresh_status()
             event.stop()
             return
-        if not self.editing and event.key in ("up", "down", "left", "right"):
+        if not self.editing and not self.select_mode and event.key in ("up", "down", "left", "right"):
             self.anchor = None
 
     def _commit_edit(self, value: str) -> None:
@@ -215,6 +243,28 @@ class TermSheetApp(App):
         grid.refresh_from_sheet(sheet)
         self.editing = False
         self.refresh_status()
+
+    def action_format_cell(self) -> None:
+        r1, c1, r2, c2 = self._selection_bounds()
+        cells = [(r, c) for r in range(r1, r2 + 1) for c in range(c1, c2 + 1)]
+        sheet = self.workbook.active_sheet
+        current = sheet.get_cell(r1, c1).fmt.number_format
+
+        def on_choice(choice: str | None) -> None:
+            if choice is None:
+                return
+            new_format = None if choice == "__general__" else choice
+            self.undo_stack.execute(SetFormatCommand(sheet, cells, new_format))
+            self.engine.recalculate()
+            self.query_one(SheetGrid).refresh_from_sheet(sheet)
+            self.refresh_status()
+
+        options = [("__general__", "General (sin formato)")]
+        options += [(key, label_for(key)) for key in FORMAT_ORDER]
+        self.push_screen(
+            ChoiceDialog("Formato de celda (flechas + Enter, Esc cancela)", options, current or "__general__"),
+            on_choice,
+        )
 
     def action_delete_selection(self) -> None:
         r1, c1, r2, c2 = self._selection_bounds()
@@ -302,6 +352,17 @@ class TermSheetApp(App):
                 self.refresh_status()
 
         self.push_screen(InputDialog("Abrir archivo (.xlsx)"), on_path)
+
+    def action_rename_sheet(self) -> None:
+        sheet = self.workbook.active_sheet
+
+        def on_name(name: str | None) -> None:
+            if name and name.strip():
+                sheet.name = name.strip()
+                self.refresh_sheet_tabs()
+                self.refresh_status()
+
+        self.push_screen(InputDialog("Renombrar hoja", initial=sheet.name), on_name)
 
     def action_new_sheet(self) -> None:
         self.workbook.add_sheet()

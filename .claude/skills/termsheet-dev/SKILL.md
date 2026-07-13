@@ -14,14 +14,15 @@ termsheet/
   model/
     cell.py             # Cell (raw, value, error, formato) y CellFormat
     coords.py            # Conversión A1 <-> (fila, columna)
-    workbook.py           # Sheet (grid dispersa) y Workbook (lista de Sheets)
+    workbook.py           # Sheet (grid dispersa, con ensure_cell) y Workbook (lista de Sheets)
     formula_engine.py      # Tokenizer, parser, evaluador y FUNCTIONS{}
-    undo.py                # Command pattern: SetCellCommand, BulkSetCommand, UndoStack
+    formatting.py           # FORMATS{} — formatos de moneda/fecha, format_display()
+    undo.py                # Command pattern: SetCellCommand, BulkSetCommand, SetFormatCommand, UndoStack
   io/
     xlsx_io.py           # load_workbook/save_workbook (openpyxl), mapeo con Google Sheets
   ui/
     themes.py             # THEMES{} y THEME_ORDER — los 5 temas de color
-    dialogs.py             # InputDialog, HelpDialog, ThemeDialog (ModalScreen)
+    dialogs.py             # InputDialog, HelpDialog, ChoiceDialog (lista genérica: temas y formatos)
     statusbar.py            # Barra de estado inferior
   clipboard.py            # RangeClipboard (portapapeles interno + pyperclip)
   config.py               # Persistencia de tema en ~/.termsheet/config.toml
@@ -50,7 +51,9 @@ El modelo (`model/`) es independiente de Textual a propósito — así se puede 
 
 **Cambiar el formato de guardado/lectura .xlsx**: todo vive en `io/xlsx_io.py`. `load_workbook` puebla el modelo a partir de un `openpyxl.Workbook` (usa `data_only=False` para preservar fórmulas, no valores calculados). `save_workbook` hace el camino inverso. Si tocas esto, verifica siempre con un test de round-trip (guardar y volver a cargar debe preservar fórmulas y multi-hoja) — hay un ejemplo en `tests/test_xlsx_io.py`.
 
-**Cambiar undo/redo o portapapeles**: usa siempre el patrón Command (`model/undo.py`) para cualquier mutación de celdas desde la UI — nunca llames a `sheet.set_raw()` directamente desde `app.py`, pasa por `self.undo_stack.execute(SetCellCommand(...))` o `BulkSetCommand(...)` para que quede en la pila de deshacer.
+**Cambiar undo/redo o portapapeles**: usa siempre el patrón Command (`model/undo.py`) para cualquier mutación de celdas desde la UI — nunca llames a `sheet.set_raw()` ni mutes `cell.fmt` directamente desde `app.py`, pasa por `self.undo_stack.execute(SetCellCommand(...))`, `BulkSetCommand(...)` o `SetFormatCommand(...)` para que quede en la pila de deshacer. Para tocar una celda que puede estar vacía (formato sin contenido), usa `sheet.ensure_cell(row, col)`, no `sheet.get_cell(...)` — este último devuelve un `Cell()` desechable si la celda no existía en el dict disperso, y cualquier mutación sobre él se perdería.
+
+**Añadir un formato de celda nuevo** (moneda, fecha u otro): añade una entrada a `FORMATS` en `model/formatting.py` con su `xlsx_code` (para que se guarde bien en el `.xlsx`) y su función de render en `_CURRENCY_RENDER` (o una rama nueva en `format_display` si no es moneda/fecha), y su key a `FORMAT_ORDER`. El diálogo (`Ctrl+1`, `ChoiceDialog` en `app.py::action_format_cell`) y el round-trip xlsx (`io/xlsx_io.py`, vía `XLSX_CODE_TO_KEY`) ya recorren `FORMATS`/`FORMAT_ORDER` automáticamente.
 
 ## La grilla y los índices de fila/columna
 
@@ -93,6 +96,10 @@ asyncio.run(main())
 ```
 
 Este patrón (crear la app, `run_test()`, `pilot.press(...)`, `pilot.pause()` tras cada acción que dispare un mensaje async) es la forma de verificar de extremo a extremo cualquier flujo de teclado nuevo antes de darlo por terminado — no te fíes solo de que el código "se vea bien"; los mensajes de Textual son asíncronos y los bugs de foco/bindings no se detectan leyendo el código.
+
+**Trampa con `push_screen(dialog, callback)`**: el callback que se pasa a `push_screen` (usado por `InputDialog`, `HelpDialog`, `ChoiceDialog`) no se ejecuta en el mismo ciclo que el `dismiss()` — hace falta un `await pilot.pause()` *extra* después del que procesa la tecla que cierra el diálogo (`enter`/`escape`) para que el callback (y por tanto el cambio de estado que aplica, ej. `SetFormatCommand`) ya se haya ejecutado. Si un test que interactúa con un diálogo modal falla con el estado "de antes" de aplicar el cambio, prueba a añadir un `pilot.pause()` más antes de leer el resultado — no asumas que es un bug real sin descartar esto primero.
+
+**Empaquetado con `--onedir`, no `--onefile`**: los tres scripts de build usan `--onedir` a propósito. `--onefile` se auto-extrae a un directorio temporal en cada arranque, lo que en macOS además dispara un rescaneo de Gatekeeper — el usuario reportó arranques de varios segundos con `--onefile` que desaparecieron al cambiar a `--onedir`. Si tocas los scripts de build, no vuelvas a `--onefile` sin que el usuario lo pida explícitamente.
 
 ## Al terminar un cambio
 

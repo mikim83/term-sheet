@@ -11,6 +11,7 @@ from openpyxl import load_workbook as xl_load_workbook
 from openpyxl.utils import get_column_letter
 
 from ..model.cell import CellFormat
+from ..model.formatting import FORMATS, XLSX_CODE_TO_KEY
 from ..model.workbook import Sheet, Workbook
 
 
@@ -25,11 +26,13 @@ def load_workbook(path: str) -> Workbook:
                     continue
                 raw = _to_raw(xl_cell.value)
                 cell = sheet.set_raw(xl_cell.row, xl_cell.column, raw)
+                xl_format = xl_cell.number_format
+                number_format = XLSX_CODE_TO_KEY.get(xl_format, xl_format if xl_format != "General" else None)
                 cell.fmt = CellFormat(
                     bold=bool(xl_cell.font and xl_cell.font.bold),
                     italic=bool(xl_cell.font and xl_cell.font.italic),
                     align=(xl_cell.alignment.horizontal or "left") if xl_cell.alignment else "left",
-                    number_format=xl_cell.number_format if xl_cell.number_format != "General" else None,
+                    number_format=number_format,
                 )
         for col_letter, dim in xl_sheet.column_dimensions.items():
             if dim.width:
@@ -62,7 +65,8 @@ def save_workbook(workbook: Workbook, path: str) -> None:
             if cell.fmt.align != "left":
                 xl_cell.alignment = xl_cell.alignment.copy(horizontal=cell.fmt.align)
             if cell.fmt.number_format:
-                xl_cell.number_format = cell.fmt.number_format
+                known = FORMATS.get(cell.fmt.number_format)
+                xl_cell.number_format = known.xlsx_code if known else cell.fmt.number_format
         for col, width in sheet.col_widths.items():
             xl_sheet.column_dimensions[get_column_letter(col)].width = width
     xl_wb.save(path)
