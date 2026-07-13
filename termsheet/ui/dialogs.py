@@ -42,8 +42,15 @@ DESHACER
   Ctrl+Z / Ctrl+Y       Deshacer / rehacer (incluye contenido y formato)
 
 ARCHIVO
-  Ctrl+S                Guardar como .xlsx
-  Ctrl+O                Abrir un .xlsx (incluye los exportados de Google Sheets)
+  Ctrl+S                Guardar: abre un navegador de carpetas con el nombre
+                        actual precargado y editable — sirve tanto para
+                        guardar como para "guardar como" si cambias el
+                        nombre o la carpeta. No cierra el archivo anterior.
+  Ctrl+O                Abrir: navegador de carpetas (solo .xlsx), sin
+                        cerrar el programa. Incluye los .xlsx exportados
+                        de Google Sheets.
+  (en el navegador: flechas + Enter para entrar en carpetas/elegir archivo,
+   Backspace para subir un nivel, Tab para saltar al nombre al guardar)
 
 HOJAS
   Ctrl+N                Nueva hoja (pestaña) en este mismo libro

@@ -19,6 +19,7 @@ from .model.formula_engine import Engine
 from .model.undo import BulkSetCommand, SetCellCommand, SetFormatCommand, UndoStack
 from .model.workbook import Workbook
 from .ui.dialogs import ChoiceDialog, HelpDialog, InputDialog
+from .ui.file_browser import FileBrowserDialog
 from .ui.statusbar import StatusBar
 from .ui.themes import THEME_ORDER, get_theme
 
@@ -333,8 +334,7 @@ class TermSheetApp(App):
                 save_workbook(self.workbook, path)
                 self.notify(f"Guardado en {path}")
 
-        default = self.workbook.path or "libro.xlsx"
-        self.push_screen(InputDialog("Guardar como (.xlsx)", initial=default), on_path)
+        self.push_screen(FileBrowserDialog("save", start_path=self.workbook.path), on_path)
 
     def action_open(self) -> None:
         def on_path(path: str | None) -> None:
@@ -351,7 +351,7 @@ class TermSheetApp(App):
                 self.refresh_sheet_tabs()
                 self.refresh_status()
 
-        self.push_screen(InputDialog("Abrir archivo (.xlsx)"), on_path)
+        self.push_screen(FileBrowserDialog("open", start_path=self.workbook.path), on_path)
 
     def action_rename_sheet(self) -> None:
         sheet = self.workbook.active_sheet

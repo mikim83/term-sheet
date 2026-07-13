@@ -23,6 +23,7 @@ termsheet/
   ui/
     themes.py             # THEMES{} y THEME_ORDER — los 5 temas de color
     dialogs.py             # InputDialog, HelpDialog, ChoiceDialog (lista genérica: temas y formatos)
+    file_browser.py        # FileBrowserDialog — navegador de carpetas para Ctrl+O/Ctrl+S
     statusbar.py            # Barra de estado inferior
   clipboard.py            # RangeClipboard (portapapeles interno + pyperclip)
   config.py               # Persistencia de tema en ~/.termsheet/config.toml
@@ -48,6 +49,8 @@ El modelo (`model/`) es independiente de Textual a propósito — así se puede 
    for namespace, bindings in app.screen._modal_binding_chain:
        print(namespace, bindings.key_to_bindings.get("tu+tecla", ()))
    ```
+
+**Abrir/guardar archivos**: `Ctrl+O`/`Ctrl+S` usan `FileBrowserDialog` (`ui/file_browser.py`), no `InputDialog` — deja navegar carpetas con flechas/Enter en vez de escribir una ruta a ciegas. Un mismo widget sirve para abrir (`mode="open"`, lista solo `.xlsx`) y guardar (`mode="save"`, añade un `Input` de nombre de archivo precargado con el actual, así "guardar" y "guardar como" son el mismo flujo). Si necesitas otro diálogo que involucre elegir una ruta del sistema de archivos, reutiliza este widget en vez de volver a `InputDialog` con una ruta escrita a mano.
 
 **Cambiar el formato de guardado/lectura .xlsx**: todo vive en `io/xlsx_io.py`. `load_workbook` puebla el modelo a partir de un `openpyxl.Workbook` (usa `data_only=False` para preservar fórmulas, no valores calculados). `save_workbook` hace el camino inverso. Si tocas esto, verifica siempre con un test de round-trip (guardar y volver a cargar debe preservar fórmulas y multi-hoja) — hay un ejemplo en `tests/test_xlsx_io.py`.
 
@@ -98,6 +101,8 @@ asyncio.run(main())
 Este patrón (crear la app, `run_test()`, `pilot.press(...)`, `pilot.pause()` tras cada acción que dispare un mensaje async) es la forma de verificar de extremo a extremo cualquier flujo de teclado nuevo antes de darlo por terminado — no te fíes solo de que el código "se vea bien"; los mensajes de Textual son asíncronos y los bugs de foco/bindings no se detectan leyendo el código.
 
 **Trampa con `push_screen(dialog, callback)`**: el callback que se pasa a `push_screen` (usado por `InputDialog`, `HelpDialog`, `ChoiceDialog`) no se ejecuta en el mismo ciclo que el `dismiss()` — hace falta un `await pilot.pause()` *extra* después del que procesa la tecla que cierra el diálogo (`enter`/`escape`) para que el callback (y por tanto el cambio de estado que aplica, ej. `SetFormatCommand`) ya se haya ejecutado. Si un test que interactúa con un diálogo modal falla con el estado "de antes" de aplicar el cambio, prueba a añadir un `pilot.pause()` más antes de leer el resultado — no asumas que es un bug real sin descartar esto primero.
+
+**`ListView` empieza con `index = None`**: si construyes un `ListView` vacío y le añades `ListItem`s dinámicamente (como hace `FileBrowserDialog` al listar una carpeta), el cursor no resalta ningún elemento hasta la primera pulsación de flecha — `list_view.index` es `None`, no `0`. La primera flecha mueve a index `0` (el primer elemento), no al segundo. Si necesitas que el primer elemento esté seleccionado desde que se abre el diálogo (para que Enter sin tocar flechas ya haga algo razonable), pon `list_view.index = 0` explícitamente después de poblarlo.
 
 **Empaquetado con `--onedir`, no `--onefile`**: los tres scripts de build usan `--onedir` a propósito. `--onefile` se auto-extrae a un directorio temporal en cada arranque, lo que en macOS además dispara un rescaneo de Gatekeeper — el usuario reportó arranques de varios segundos con `--onefile` que desaparecieron al cambiar a `--onedir`. Si tocas los scripts de build, no vuelvas a `--onefile` sin que el usuario lo pida explícitamente.
 

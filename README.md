@@ -23,6 +23,10 @@ python -m termsheet.app                 # libro nuevo en blanco
 python -m termsheet.app ruta/libro.xlsx  # abrir un archivo existente
 ```
 
+## Abrir y guardar archivos
+
+`Ctrl+O` y `Ctrl+S` abren un navegador de carpetas dentro del propio programa (no hace falta cerrar TermSheet ni escribir rutas a ciegas): flechas + `Enter` para entrar en una carpeta o elegir un archivo, `Backspace` para subir un nivel, `Esc` para cancelar. Al guardar, el nombre actual viene precargado y es editable (`Tab` para saltar al campo de nombre) — cambia el nombre o navega a otra carpeta para hacer un "guardar como" sin sobrescribir el archivo original.
+
 ## Abrir hojas de Google Sheets
 
 Google Sheets no se abre directamente por URL: en Google Sheets ve a **Archivo → Descargar → Microsoft Excel (.xlsx)** y abre ese archivo con TermSheet. Al guardar, se genera un `.xlsx` real que puedes volver a subir a Google Sheets (**Archivo → Importar**) o abrir en Excel.
@@ -40,8 +44,8 @@ Google Sheets no se abre directamente por URL: en Google Sheets ve a **Archivo �
 | `Delete` | Borrar contenido de la selección |
 | `Ctrl+1` | Formato de celda: moneda o fecha, aplicado a la celda o rango seleccionado |
 | `Ctrl+Z` / `Ctrl+Y` | Deshacer / Rehacer (incluye formato) |
-| `Ctrl+S` | Guardar como `.xlsx` |
-| `Ctrl+O` | Abrir `.xlsx` |
+| `Ctrl+S` | Guardar: navegador de carpetas con el nombre actual editable (sirve de "guardar como" si lo cambias) |
+| `Ctrl+O` | Abrir: navegador de carpetas (solo `.xlsx`), sin cerrar el programa |
 | `Ctrl+N` | Nueva hoja |
 | `Ctrl+R` | Renombrar la hoja activa |
 | `Alt+PageUp` / `Alt+PageDown` | Cambiar de hoja (la activa se resalta en la barra inferior) |
