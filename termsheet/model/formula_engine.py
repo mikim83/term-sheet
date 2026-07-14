@@ -27,9 +27,13 @@ class FormulaError(Exception):
 # Tokenizer
 # ---------------------------------------------------------------------------
 
+_SHEET_NAME = r"(?:'(?:[^'\\]|\\.)*'|[A-Za-z_][A-Za-z0-9_]*)"
+
 TOKEN_SPEC = [
     ("NUMBER", r"\d+\.\d+|\d+"),
     ("STRING", r'"(?:[^"\\]|\\.)*"'),
+    ("SHEET_RANGE", _SHEET_NAME + r"![A-Za-z]+\d+:[A-Za-z]+\d+"),
+    ("SHEET_CELL", _SHEET_NAME + r"![A-Za-z]+\d+"),
     ("RANGE", r"[A-Za-z]+\d+:[A-Za-z]+\d+"),
     ("CELL", r"[A-Za-z]+\d+"),
     ("ID", r"[A-Za-z_][A-Za-z0-9_.]*"),
@@ -81,12 +85,14 @@ class StringNode(Node):
 @dataclass
 class CellNode(Node):
     ref: str
+    sheet: str | None = None
 
 
 @dataclass
 class RangeNode(Node):
     start: str
     end: str
+    sheet: str | None = None
 
 
 @dataclass
@@ -111,6 +117,14 @@ class FuncCallNode(Node):
 # ---------------------------------------------------------------------------
 # Parser (recursive descent)
 # ---------------------------------------------------------------------------
+
+
+def _split_sheet_ref(token_value: str) -> tuple[str, str]:
+    """'Hoja1!A1' -> ('Hoja1', 'A1'); "'Mi Hoja'!A1:B2" -> ('Mi Hoja', 'A1:B2')."""
+    sheet_part, _, rest = token_value.partition("!")
+    if sheet_part.startswith("'") and sheet_part.endswith("'"):
+        sheet_part = sheet_part[1:-1].replace("\\'", "'")
+    return sheet_part, rest
 
 
 class Parser:
@@ -201,6 +215,17 @@ class Parser:
         if tok.kind == "CELL":
             self.advance()
             return CellNode(tok.value)
+
+        if tok.kind == "SHEET_RANGE":
+            self.advance()
+            sheet_name, rest = _split_sheet_ref(tok.value)
+            start, end = rest.split(":")
+            return RangeNode(start, end, sheet=sheet_name)
+
+        if tok.kind == "SHEET_CELL":
+            self.advance()
+            sheet_name, rest = _split_sheet_ref(tok.value)
+            return CellNode(rest, sheet=sheet_name)
 
         if tok.value == "(":
             self.advance()
@@ -447,17 +472,25 @@ class Engine:
         except ValueError:
             return raw
 
-    def _resolve_cell(self, sheet, ref: str):
+    def _sheet_by_name(self, name: str):
+        target = self.workbook.sheet_by_name(name)
+        if target is None:
+            raise FormulaError("#REF!")
+        return target
+
+    def _resolve_cell(self, sheet, ref: str, sheet_name: str | None = None):
+        target = self._sheet_by_name(sheet_name) if sheet_name is not None else sheet
         row, col = a1_to_coord(ref)
-        cell = sheet.get_cell(row, col)
-        key = (sheet.name, row, col)
+        cell = target.get_cell(row, col)
+        key = (target.name, row, col)
         if key not in self._memo:
-            self._evaluate_cell(sheet, row, col, cell)
+            self._evaluate_cell(target, row, col, cell)
         if cell.error:
             raise FormulaError(cell.error)
         return self._memo.get(key)
 
-    def _resolve_range(self, sheet, start: str, end: str) -> list[list]:
+    def _resolve_range(self, sheet, start: str, end: str, sheet_name: str | None = None) -> list[list]:
+        target = self._sheet_by_name(sheet_name) if sheet_name is not None else sheet
         r1, c1 = a1_to_coord(start)
         r2, c2 = a1_to_coord(end)
         rows = range(min(r1, r2), max(r1, r2) + 1)
@@ -466,7 +499,7 @@ class Engine:
         for r in rows:
             row_vals = []
             for c in cols:
-                row_vals.append(self._resolve_cell(sheet, coord_to_a1(r, c)))
+                row_vals.append(self._resolve_cell(target, coord_to_a1(r, c)))
             out.append(row_vals)
         return out
 
@@ -476,9 +509,9 @@ class Engine:
         if isinstance(node, StringNode):
             return node.value
         if isinstance(node, CellNode):
-            return self._resolve_cell(sheet, node.ref)
+            return self._resolve_cell(sheet, node.ref, node.sheet)
         if isinstance(node, RangeNode):
-            return self._resolve_range(sheet, node.start, node.end)
+            return self._resolve_range(sheet, node.start, node.end, node.sheet)
         if isinstance(node, UnaryOpNode):
             val = _to_number(self._eval(node.operand, sheet))
             return -val if node.op == "-" else val

@@ -6,7 +6,7 @@ import sys
 
 from textual.app import App, ComposeResult
 from textual.binding import Binding
-from textual.containers import Horizontal
+from textual.containers import Vertical
 from textual.widgets import Footer, Input, Static
 
 from . import config
@@ -36,12 +36,18 @@ class TermSheetApp(App):
     SheetGrid {
         height: 1fr;
     }
-    StatusBar {
+    #bottom_bar {
         dock: bottom;
-        height: 1;
+        height: 3;
     }
     #sheet_tabs {
-        dock: bottom;
+        height: 1;
+    }
+    StatusBar {
+        height: 1;
+    }
+    #bottom_bar Footer {
+        dock: none;
         height: 1;
     }
     """
@@ -87,9 +93,10 @@ class TermSheetApp(App):
     def compose(self) -> ComposeResult:
         yield Input(id="formula_bar")
         yield SheetGrid(id="grid")
-        yield Static(id="sheet_tabs")
-        yield StatusBar(id="statusbar")
-        yield Footer()
+        with Vertical(id="bottom_bar"):
+            yield Static(id="sheet_tabs")
+            yield StatusBar(id="statusbar")
+            yield Footer()
 
     def on_mount(self) -> None:
         grid = self.query_one(SheetGrid)

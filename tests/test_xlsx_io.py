@@ -48,3 +48,22 @@ def test_roundtrip_preserves_currency_and_date_format():
         assert datos.get_cell(1, 1).display() == "1.234,50 €"
         assert datos.get_cell(2, 1).fmt.number_format == "date_dmy"
         assert datos.get_cell(2, 1).display() == "13/07/2026"
+
+
+def test_roundtrip_preserves_cross_sheet_formula():
+    wb = Workbook(sheets=[])
+    s1 = wb.add_sheet("Datos")
+    s2 = wb.add_sheet("Resumen")
+    s1.set_raw(1, 1, "100")
+    s2.set_raw(1, 1, "=Datos!A1*2")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "cross_sheet.xlsx")
+        save_workbook(wb, path)
+
+        wb2 = load_workbook(path)
+        resumen = wb2.sheet_by_name("Resumen")
+        assert resumen.get_raw(1, 1) == "=Datos!A1*2"
+
+        Engine(wb2).recalculate()
+        assert resumen.get_cell(1, 1).value == 200
