@@ -30,6 +30,7 @@ termsheet/
   grid.py                 # SheetGrid: DataTable de Textual, navegación y render
   app.py                  # TermSheetApp: bindings de teclado, orquesta todo lo anterior
 tests/                   # pytest — un archivo por módulo del modelo
+qa_samples/              # .xlsx reales aportados por el usuario, usados como fixtures de QA
 scripts/                 # build_windows.ps1, build_macos.sh, build_linux.sh (PyInstaller)
 ```
 
@@ -52,7 +53,9 @@ El modelo (`model/`) es independiente de Textual a propósito — así se puede 
 
 **Abrir/guardar archivos**: `Ctrl+O`/`Ctrl+S` usan `FileBrowserDialog` (`ui/file_browser.py`), no `InputDialog` — deja navegar carpetas con flechas/Enter en vez de escribir una ruta a ciegas. Un mismo widget sirve para abrir (`mode="open"`, lista solo `.xlsx`) y guardar (`mode="save"`, añade un `Input` de nombre de archivo precargado con el actual, así "guardar" y "guardar como" son el mismo flujo). Si necesitas otro diálogo que involucre elegir una ruta del sistema de archivos, reutiliza este widget en vez de volver a `InputDialog` con una ruta escrita a mano.
 
-**Cambiar el formato de guardado/lectura .xlsx**: todo vive en `io/xlsx_io.py`. `load_workbook` puebla el modelo a partir de un `openpyxl.Workbook` (usa `data_only=False` para preservar fórmulas, no valores calculados). `save_workbook` hace el camino inverso. Si tocas esto, verifica siempre con un test de round-trip (guardar y volver a cargar debe preservar fórmulas y multi-hoja) — hay un ejemplo en `tests/test_xlsx_io.py`.
+**Cambiar el formato de guardado/lectura .xlsx**: todo vive en `io/xlsx_io.py`. `load_workbook` puebla el modelo a partir de un `openpyxl.Workbook` (usa `data_only=False` para preservar fórmulas, no valores calculados). `save_workbook` hace el camino inverso. Si tocas esto, verifica siempre con un test de round-trip (guardar y volver a cargar debe preservar fórmulas y multi-hoja) — hay un ejemplo en `tests/test_xlsx_io.py`, y `qa_samples/QA.xlsx` + `tests/test_qa_fixtures.py` para un caso real con multi-hoja, fórmulas cruzadas y fechas.
+
+**Celdas de fecha al importar un .xlsx**: openpyxl devuelve un `datetime.date`/`datetime.datetime` de Python para cualquier celda con formato de fecha, con el código de formato original de Excel en `xl_cell.number_format` (ej. `'d/MM/yyyy'`, `'dd-mm-yy'`...) — nunca coincide con nuestro `FORMATS["date_dmy"].xlsx_code`, así que **no** intentes mapearlo vía `XLSX_CODE_TO_KEY`. `load_workbook` detecta la fecha directamente por el tipo del valor (`isinstance(xl_cell.value, (datetime.date, datetime.datetime))`) y siempre le asigna nuestra única clave `"date_dmy"`, independientemente de qué código de formato traía Excel. `_to_raw` convierte el valor a ISO `YYYY-MM-DD` (lo que espera `formatting._format_date_dmy`), no al `str()` por defecto de un objeto `datetime` (que da algo feo tipo `2026-10-10 00:00:00`).
 
 **Cambiar undo/redo o portapapeles**: usa siempre el patrón Command (`model/undo.py`) para cualquier mutación de celdas desde la UI — nunca llames a `sheet.set_raw()` ni mutes `cell.fmt` directamente desde `app.py`, pasa por `self.undo_stack.execute(SetCellCommand(...))`, `BulkSetCommand(...)` o `SetFormatCommand(...)` para que quede en la pila de deshacer. Para tocar una celda que puede estar vacía (formato sin contenido), usa `sheet.ensure_cell(row, col)`, no `sheet.get_cell(...)` — este último devuelve un `Cell()` desechable si la celda no existía en el dict disperso, y cualquier mutación sobre él se perdería.
 

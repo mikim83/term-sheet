@@ -6,6 +6,8 @@ Google Sheets (Archivo -> Descargar -> Microsoft Excel).
 
 from __future__ import annotations
 
+import datetime
+
 from openpyxl import Workbook as XlWorkbook
 from openpyxl import load_workbook as xl_load_workbook
 from openpyxl.utils import get_column_letter
@@ -27,7 +29,13 @@ def load_workbook(path: str) -> Workbook:
                 raw = _to_raw(xl_cell.value)
                 cell = sheet.set_raw(xl_cell.row, xl_cell.column, raw)
                 xl_format = xl_cell.number_format
-                number_format = XLSX_CODE_TO_KEY.get(xl_format, xl_format if xl_format != "General" else None)
+                if isinstance(xl_cell.value, (datetime.date, datetime.datetime)):
+                    # Excel usa muchos códigos de formato de fecha distintos (d/MM/yyyy,
+                    # dd-mm-yy, etc.) que no coinciden con nuestro FORMATS["date_dmy"].xlsx_code
+                    # — si el valor ya es una fecha, siempre usamos nuestro único formato de fecha.
+                    number_format = "date_dmy"
+                else:
+                    number_format = XLSX_CODE_TO_KEY.get(xl_format, xl_format if xl_format != "General" else None)
                 cell.fmt = CellFormat(
                     bold=bool(xl_cell.font and xl_cell.font.bold),
                     italic=bool(xl_cell.font and xl_cell.font.italic),
@@ -49,6 +57,12 @@ def load_workbook(path: str) -> Workbook:
 def _to_raw(value) -> str:
     if isinstance(value, str) and value.startswith("="):
         return value
+    if isinstance(value, datetime.datetime):
+        if value.time() == datetime.time():
+            return value.strftime("%Y-%m-%d")
+        return value.strftime("%Y-%m-%d %H:%M:%S")
+    if isinstance(value, datetime.date):
+        return value.strftime("%Y-%m-%d")
     return str(value)
 
 
