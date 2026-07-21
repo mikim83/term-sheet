@@ -7,6 +7,7 @@ Google Sheets (Archivo -> Descargar -> Microsoft Excel).
 from __future__ import annotations
 
 import datetime
+import xml.etree.ElementTree as ET
 
 from openpyxl import Workbook as XlWorkbook
 from openpyxl import load_workbook as xl_load_workbook
@@ -45,11 +46,47 @@ def _border_style_and_color(xl_cell) -> tuple[str | None, str]:
     return None, "808080"
 
 
+def _read_column_widths_streaming(xl_wb, xl_sheet) -> dict[int, int]:
+    """Los anchos de columna (`<cols><col .../></cols>`) no están accesibles
+    vía `column_dimensions` en modo `read_only` de openpyxl (ver
+    `load_workbook` de más abajo, y por qué usamos ese modo). Como ese bloque
+    siempre aparece ANTES de `<sheetData>` (que es lo que realmente pesa en
+    archivos grandes), lo leemos con un parseo streaming aparte que se
+    detiene en cuanto empieza `<sheetData>` — así el coste sigue siendo
+    ínfimo (unos KB) sin importar lo grande que sea la hoja."""
+    widths: dict[int, int] = {}
+    try:
+        stream = xl_wb._archive.open(xl_sheet._worksheet_path)
+    except (KeyError, AttributeError):
+        return widths
+    try:
+        for event, elem in ET.iterparse(stream, events=("start", "end")):
+            tag = elem.tag.rsplit("}", 1)[-1]
+            if tag == "col" and event == "end":
+                width = elem.get("width")
+                col_min = elem.get("min")
+                col_max = elem.get("max")
+                if width and col_min and col_max:
+                    for col in range(int(col_min), int(col_max) + 1):
+                        widths[col] = int(float(width))
+            elif tag == "sheetData" and event == "start":
+                break
+    finally:
+        stream.close()
+    return widths
+
+
 def load_workbook(path: str) -> Workbook:
-    xl_wb = xl_load_workbook(path, data_only=False)
+    # read_only=True usa el parser en streaming de openpyxl en vez de
+    # construir un grafo de objetos completo con cada celda del archivo —
+    # medido: reduce la memoria pico de abrir un .xlsx grande más de 20x
+    # (ver README, sección Benchmark). El acceso a valor/estilo por celda
+    # (font, fill, border, number_format) funciona igual en ambos modos.
+    xl_wb = xl_load_workbook(path, data_only=False, read_only=True)
     wb = Workbook(sheets=[])
     for xl_sheet in xl_wb.worksheets:
         sheet = Sheet(xl_sheet.title)
+        col_widths = _read_column_widths_streaming(xl_wb, xl_sheet)
         for row in xl_sheet.iter_rows():
             for xl_cell in row:
                 if xl_cell.value is None:
@@ -79,11 +116,7 @@ def load_workbook(path: str) -> Workbook:
                     border_style=border_style,
                     border_color=border_color,
                 )
-        for col_letter, dim in xl_sheet.column_dimensions.items():
-            if dim.width:
-                from openpyxl.utils import column_index_from_string
-
-                sheet.col_widths[column_index_from_string(col_letter)] = int(dim.width)
+        sheet.col_widths.update(col_widths)
         wb.sheets.append(sheet)
     if not wb.sheets:
         wb.sheets.append(Sheet("Hoja1"))

@@ -5,7 +5,7 @@ from dataclasses import dataclass, field
 from .formatting import format_display
 
 
-@dataclass
+@dataclass(slots=True)
 class CellFormat:
     bold: bool = False
     italic: bool = False
@@ -25,7 +25,7 @@ class CellFormat:
     border_color: str = "808080"
 
 
-@dataclass
+@dataclass(slots=True)
 class Cell:
     """A single cell: raw input (formula or literal) plus cached computed value."""
 
