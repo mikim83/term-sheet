@@ -25,3 +25,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 include = ["termsheet*"]
+
+[tool.pytest.ini_options]
+markers = [
+    "slow: pruebas lentas/pesadas (benchmarks de archivos .xlsx grandes) excluidas del `pytest` normal — ver README, sección Benchmark",
+]
+addopts = "-m \"not slow\""
