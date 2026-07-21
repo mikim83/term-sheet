@@ -67,3 +67,66 @@ def test_roundtrip_preserves_cross_sheet_formula():
 
         Engine(wb2).recalculate()
         assert resumen.get_cell(1, 1).value == 200
+
+
+def test_roundtrip_preserves_font_color_bg_color_and_border():
+    wb = Workbook(sheets=[])
+    s1 = wb.add_sheet("Datos")
+    styled = s1.set_raw(1, 1, "hola")
+    styled.fmt.font_color = "FF0000"
+    styled.fmt.bg_color = "FFFF00"
+    styled.fmt.border_style = "thick"
+    styled.fmt.border_color = "000000"
+    s1.set_raw(2, 1, "sin estilo propio")  # se queda con el default (dashed gris)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "styled.xlsx")
+        save_workbook(wb, path)
+
+        wb2 = load_workbook(path)
+        datos = wb2.sheet_by_name("Datos")
+        styled2 = datos.get_cell(1, 1)
+        assert styled2.fmt.font_color == "FF0000"
+        assert styled2.fmt.bg_color == "FFFF00"
+        assert styled2.fmt.border_style == "thick"
+        assert styled2.fmt.border_color == "000000"
+
+        default2 = datos.get_cell(2, 1)
+        assert default2.fmt.border_style == "dashed"
+        assert default2.fmt.border_color == "808080"
+        assert default2.fmt.font_color is None
+        assert default2.fmt.bg_color is None
+
+
+def test_load_workbook_reads_colors_from_a_real_excel_file():
+    """Compatibilidad con un .xlsx creado directamente con openpyxl (como lo
+    haría Excel real), no generado por nuestro propio save_workbook."""
+    from openpyxl import Workbook as XlWorkbook
+    from openpyxl.styles import Border, Font, PatternFill, Side
+
+    xl_wb = XlWorkbook()
+    ws = xl_wb.active
+    ws.title = "Hoja1"
+    ws["A1"] = "importado"
+    ws["A1"].font = Font(color="FF3366CC")
+    ws["A1"].fill = PatternFill(fgColor="FFEEEE00", fill_type="solid")
+    side = Side(style="dotted", color="FF444444")
+    ws["A1"].border = Border(left=side, right=side, top=side, bottom=side)
+    ws["B1"] = "sin estilo"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "external.xlsx")
+        xl_wb.save(path)
+
+        wb = load_workbook(path)
+        sheet = wb.sheet_by_name("Hoja1")
+        a1 = sheet.get_cell(1, 1)
+        assert a1.fmt.font_color == "3366CC"
+        assert a1.fmt.bg_color == "EEEE00"
+        assert a1.fmt.border_style == "dotted"
+        assert a1.fmt.border_color == "444444"
+
+        b1 = sheet.get_cell(1, 2)
+        assert b1.fmt.font_color is None
+        assert b1.fmt.bg_color is None
+        assert b1.fmt.border_style is None  # el archivo externo no le puso borde

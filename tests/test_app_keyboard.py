@@ -356,6 +356,94 @@ def test_ctrl_1_format_applies_to_whole_range_and_is_undoable():
     assert formats_undone == (None, None)
 
 
+# -- Estilo de celda (Ctrl+2) -------------------------------------------------
+
+
+def test_ctrl_2_applies_font_and_bg_color_and_border():
+    async def scenario():
+        from textual.widgets import Input
+
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            sheet = app.workbook.active_sheet
+            sheet.set_raw(1, 1, "hola")
+            grid.refresh_from_sheet(sheet)
+            grid.move_to(1, 1)
+
+            await pilot.press("ctrl+2")
+            await pilot.pause()
+            app.screen.query_one("#style_font_color", Input).value = "ff0000"
+            app.screen.query_one("#style_bg_color", Input).value = "00ff00"
+            app.screen.query_one("#style_border_style", Input).value = "thick"
+            app.screen.query_one("#style_border_color", Input).value = "000000"
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+            return sheet.get_cell(1, 1).fmt
+
+    fmt = run(scenario())
+    assert fmt.font_color == "FF0000"
+    assert fmt.bg_color == "00FF00"
+    assert fmt.border_style == "thick"
+    assert fmt.border_color == "000000"
+
+
+def test_ctrl_2_style_is_undoable_and_applies_to_range():
+    async def scenario():
+        from textual.widgets import Input
+
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            sheet = app.workbook.active_sheet
+            sheet.set_raw(1, 1, "a")
+            sheet.set_raw(1, 2, "b")
+            grid.refresh_from_sheet(sheet)
+            grid.move_to(1, 1)
+            await pilot.press("shift+right")
+            await pilot.pause()
+
+            await pilot.press("ctrl+2")
+            await pilot.pause()
+            app.screen.query_one("#style_font_color", Input).value = "abcdef"
+            await pilot.press("enter")
+            await pilot.pause()
+            await pilot.pause()
+            colors_after = (sheet.get_cell(1, 1).fmt.font_color, sheet.get_cell(1, 2).fmt.font_color)
+
+            await pilot.press("ctrl+z")
+            await pilot.pause()
+            colors_undone = (sheet.get_cell(1, 1).fmt.font_color, sheet.get_cell(1, 2).fmt.font_color)
+            return colors_after, colors_undone
+
+    colors_after, colors_undone = run(scenario())
+    assert colors_after == ("ABCDEF", "ABCDEF")
+    assert colors_undone == (None, None)
+
+
+def test_ctrl_2_escape_cancels_without_changes():
+    async def scenario():
+        app = TermSheetApp()
+        async with app.run_test() as pilot:
+            await pilot.pause()
+            grid = app.query_one("SheetGrid")
+            sheet = app.workbook.active_sheet
+            sheet.set_raw(1, 1, "x")
+            grid.refresh_from_sheet(sheet)
+            grid.move_to(1, 1)
+
+            await pilot.press("ctrl+2")
+            await pilot.pause()
+            await pilot.press("escape")
+            await pilot.pause()
+            return sheet.get_cell(1, 1).fmt.font_color
+
+    assert run(scenario()) is None
+
+
 # -- Renombrar hoja (Ctrl+R) --------------------------------------------------
 
 

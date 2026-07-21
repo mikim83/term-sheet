@@ -67,6 +67,33 @@ class SetFormatCommand(Command):
             self.sheet.ensure_cell(row, col).fmt.number_format = old_format
 
 
+@dataclass
+class SetStyleCommand(Command):
+    """Aplica color de fuente/fondo y grosor/color de línea a un rango de
+    celdas de una sola vez (un único paso de undo/redo aunque cambien varios
+    atributos). `updates` es un dict con las claves de CellFormat a cambiar
+    (font_color, bg_color, border_style, border_color) — solo se tocan las
+    claves presentes, el resto de la celda queda igual."""
+
+    sheet: object
+    cells: list[tuple[int, int]]
+    updates: dict[str, object]
+    old_values: dict[tuple[int, int], dict[str, object]] = field(default_factory=dict, init=False)
+
+    def do(self) -> None:
+        for row, col in self.cells:
+            cell = self.sheet.ensure_cell(row, col)
+            self.old_values[(row, col)] = {k: getattr(cell.fmt, k) for k in self.updates}
+            for key, value in self.updates.items():
+                setattr(cell.fmt, key, value)
+
+    def undo(self) -> None:
+        for (row, col), old in self.old_values.items():
+            cell = self.sheet.ensure_cell(row, col)
+            for key, value in old.items():
+                setattr(cell.fmt, key, value)
+
+
 class UndoStack:
     def __init__(self, limit: int = 100):
         self.limit = limit

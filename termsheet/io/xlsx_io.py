@@ -10,11 +10,39 @@ import datetime
 
 from openpyxl import Workbook as XlWorkbook
 from openpyxl import load_workbook as xl_load_workbook
+from openpyxl.styles import Border, PatternFill, Side
 from openpyxl.utils import get_column_letter
 
 from ..model.cell import CellFormat
 from ..model.formatting import FORMATS, XLSX_CODE_TO_KEY
 from ..model.workbook import Sheet, Workbook
+
+
+def _rgb_from_xl_color(color) -> str | None:
+    """Extrae "RRGGBB" de un openpyxl.styles.colors.Color, o None si no tiene
+    un valor RGB directo (p.ej. colores de tema, que no mapean 1:1 a hex)."""
+    if color is None or not getattr(color, "rgb", None):
+        return None
+    rgb = color.rgb
+    if not isinstance(rgb, str) or len(rgb) < 6:
+        return None
+    return rgb[-6:]  # los colores de Excel vienen en ARGB (8 hex); nos quedamos con RGB
+
+
+def _border_style_and_color(xl_cell) -> tuple[str | None, str]:
+    """Se guarda un único grosor/estilo de línea por celda (no por lado):
+    cogemos el primer lado con borde definido (top/right/bottom/left, en ese
+    orden) como representativo. Es una simplificación deliberada — ver
+    CellFormat.border_style — pero evita perder por completo bordes reales
+    de un .xlsx al reabrirlo y volver a guardarlo."""
+    border = xl_cell.border
+    if border is None:
+        return None, "808080"
+    for side in (border.top, border.right, border.bottom, border.left):
+        if side is not None and side.style:
+            color = _rgb_from_xl_color(side.color) or "808080"
+            return side.style, color
+    return None, "808080"
 
 
 def load_workbook(path: str) -> Workbook:
@@ -36,11 +64,20 @@ def load_workbook(path: str) -> Workbook:
                     number_format = "date_dmy"
                 else:
                     number_format = XLSX_CODE_TO_KEY.get(xl_format, xl_format if xl_format != "General" else None)
+                font_color = _rgb_from_xl_color(xl_cell.font.color) if xl_cell.font else None
+                bg_color = None
+                if xl_cell.fill and xl_cell.fill.patternType == "solid":
+                    bg_color = _rgb_from_xl_color(xl_cell.fill.fgColor)
+                border_style, border_color = _border_style_and_color(xl_cell)
                 cell.fmt = CellFormat(
                     bold=bool(xl_cell.font and xl_cell.font.bold),
                     italic=bool(xl_cell.font and xl_cell.font.italic),
                     align=(xl_cell.alignment.horizontal or "left") if xl_cell.alignment else "left",
                     number_format=number_format,
+                    font_color=font_color,
+                    bg_color=bg_color,
+                    border_style=border_style,
+                    border_color=border_color,
                 )
         for col_letter, dim in xl_sheet.column_dimensions.items():
             if dim.width:
@@ -74,13 +111,21 @@ def save_workbook(workbook: Workbook, path: str) -> None:
         for row, col, cell in sheet.iter_cells():
             xl_cell = xl_sheet.cell(row=row, column=col)
             xl_cell.value = _cell_value_for_xlsx(cell)
-            if cell.fmt.bold or cell.fmt.italic:
-                xl_cell.font = xl_cell.font.copy(bold=cell.fmt.bold, italic=cell.fmt.italic)
+            if cell.fmt.bold or cell.fmt.italic or cell.fmt.font_color:
+                font_kwargs = {"bold": cell.fmt.bold, "italic": cell.fmt.italic}
+                if cell.fmt.font_color:
+                    font_kwargs["color"] = cell.fmt.font_color
+                xl_cell.font = xl_cell.font.copy(**font_kwargs)
             if cell.fmt.align != "left":
                 xl_cell.alignment = xl_cell.alignment.copy(horizontal=cell.fmt.align)
             if cell.fmt.number_format:
                 known = FORMATS.get(cell.fmt.number_format)
                 xl_cell.number_format = known.xlsx_code if known else cell.fmt.number_format
+            if cell.fmt.bg_color:
+                xl_cell.fill = PatternFill(fgColor=cell.fmt.bg_color, fill_type="solid")
+            if cell.fmt.border_style:
+                side = Side(style=cell.fmt.border_style, color=cell.fmt.border_color)
+                xl_cell.border = Border(left=side, right=side, top=side, bottom=side)
         for col, width in sheet.col_widths.items():
             xl_sheet.column_dimensions[get_column_letter(col)].width = width
     xl_wb.save(path)

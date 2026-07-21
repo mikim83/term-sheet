@@ -16,9 +16,9 @@ from .io.xlsx_io import load_workbook, save_workbook
 from .model.coords import a1_to_coord, coord_to_a1
 from .model.formatting import FORMAT_ORDER, label_for
 from .model.formula_engine import Engine
-from .model.undo import BulkSetCommand, SetCellCommand, SetFormatCommand, UndoStack
+from .model.undo import BulkSetCommand, SetCellCommand, SetFormatCommand, SetStyleCommand, UndoStack
 from .model.workbook import Workbook
-from .ui.dialogs import ChoiceDialog, HelpDialog, InputDialog
+from .ui.dialogs import CellStyleDialog, ChoiceDialog, HelpDialog, InputDialog
 from .ui.file_browser import FileBrowserDialog
 from .ui.statusbar import StatusBar
 from .ui.themes import THEME_ORDER, get_theme
@@ -69,6 +69,7 @@ class TermSheetApp(App):
         Binding("f2", "edit_cell", "Editar"),
         Binding("f8", "toggle_select_mode", "Modo selección"),
         Binding("ctrl+1", "format_cell", "Formato de celda"),
+        Binding("ctrl+2", "style_cell", "Estilo de celda"),
         Binding("ctrl+r", "rename_sheet", "Renombrar hoja"),
         Binding("delete", "delete_selection", "Borrar"),
         Binding("alt+pagedown", "next_sheet", "Hoja siguiente", show=False),
@@ -272,6 +273,29 @@ class TermSheetApp(App):
         self.push_screen(
             ChoiceDialog("Formato de celda (flechas + Enter, Esc cancela)", options, current or "__general__"),
             on_choice,
+        )
+
+    def action_style_cell(self) -> None:
+        r1, c1, r2, c2 = self._selection_bounds()
+        cells = [(r, c) for r in range(r1, r2 + 1) for c in range(c1, c2 + 1)]
+        sheet = self.workbook.active_sheet
+        current_fmt = sheet.get_cell(r1, c1).fmt
+
+        def on_result(result: dict | None) -> None:
+            if result is None:
+                return
+            self.undo_stack.execute(SetStyleCommand(sheet, cells, result))
+            self.query_one(SheetGrid).refresh_from_sheet(sheet)
+            self.refresh_status()
+
+        self.push_screen(
+            CellStyleDialog(
+                current_fmt.font_color,
+                current_fmt.bg_color,
+                current_fmt.border_style,
+                current_fmt.border_color,
+            ),
+            on_result,
         )
 
     def action_delete_selection(self) -> None:

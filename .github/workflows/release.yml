@@ -1,0 +1,82 @@
+name: Release
+
+# Se dispara al empujar un tag "v*" (ej. v0.2.0). Compila un ejecutable
+# nativo standalone para Linux, macOS y Windows (PyInstaller no permite
+# cross-compile, así que cada plataforma se construye en su propio runner)
+# y los sube como assets del Release de GitHub correspondiente a ese tag.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset_name: termsheet-linux
+            build_script: scripts/build_linux.sh
+            dist_bin: dist/termsheet
+          - os: macos-latest
+            asset_name: termsheet-macos
+            build_script: scripts/build_macos.sh
+            dist_bin: dist/termsheet
+          - os: windows-latest
+            asset_name: termsheet-windows
+            build_script: scripts/build_windows.ps1
+            dist_bin: dist/termsheet
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Compilar (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          chmod +x ${{ matrix.build_script }}
+          ./${{ matrix.build_script }}
+
+      - name: Compilar (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: ./${{ matrix.build_script }}
+
+      - name: Empaquetar en zip (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd dist
+          zip -r ../${{ matrix.asset_name }}.zip termsheet
+
+      - name: Empaquetar en zip (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path dist/termsheet -DestinationPath ${{ matrix.asset_name }}.zip
+
+      - name: Subir artefacto
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ${{ matrix.asset_name }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Crear Release y subir los tres zips
+        uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*/*.zip
+          generate_release_notes: true

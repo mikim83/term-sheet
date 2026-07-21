@@ -2,14 +2,33 @@
 
 from __future__ import annotations
 
+from rich.text import Text
 from textual.coordinate import Coordinate
 from textual.widgets import DataTable
 
 from .model.coords import col_to_letters
 from .model.workbook import Sheet
+from .model.cell import Cell
 
 DEFAULT_ROWS = 200
 DEFAULT_COLS = 26
+
+
+def _cell_render(cell: Cell) -> str | Text:
+    """Texto plano si la celda no tiene color propio (caso común, barato);
+    si tiene font_color/bg_color, un rich.text.Text con ese estilo — DataTable
+    de Textual acepta objetos Text como valor de celda y respeta su estilo."""
+    text = cell.display()
+    fg = cell.fmt.font_color
+    bg = cell.fmt.bg_color
+    if not fg and not bg:
+        return text
+    style_parts = []
+    if fg:
+        style_parts.append(f"#{fg}")
+    if bg:
+        style_parts.append(f"on #{bg}")
+    return Text(text, style=" ".join(style_parts))
 
 
 class SheetGrid(DataTable):
@@ -36,7 +55,7 @@ class SheetGrid(DataTable):
                 self.update_cell(f"r{r}", f"c{c}", "", update_width=False)
         for row, col, cell in sheet.iter_cells():
             if row <= self.n_rows and col <= self.n_cols:
-                self.update_cell(f"r{row}", f"c{col}", cell.display(), update_width=False)
+                self.update_cell(f"r{row}", f"c{col}", _cell_render(cell), update_width=False)
 
     def selected_coord(self) -> tuple[int, int]:
         coord: Coordinate = self.cursor_coordinate
