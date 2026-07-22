@@ -1,12 +1,27 @@
 #!/usr/bin/env bash
 # Empaqueta TermSheet como ejecutable standalone para Linux usando PyInstaller.
-# Requiere Python 3.11+ instalado. Ejecutar desde la raíz del repo:
+# Requiere Python 3.10+ instalado. Ejecutar desde la raíz del repo:
 #   chmod +x scripts/build_linux.sh && ./scripts/build_linux.sh
+#
+# Si tu `python3` del PATH es más antiguo que 3.10 (p.ej. hay otra versión
+# instalada aparte, vía pyenv/Homebrew/etc.), indica cuál usar con la
+# variable PYTHON en vez de tocar el script:
+#   PYTHON=/ruta/a/python3.11 ./scripts/build_linux.sh
 
 set -euo pipefail
 
+PYTHON="${PYTHON:-python3}"
+
+echo "Usando intérprete: $PYTHON ($("$PYTHON" --version 2>&1))"
+if ! "$PYTHON" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
+    echo "ERROR: $PYTHON es más antiguo que 3.10 (requerido por termsheet)." >&2
+    echo "Indica un intérprete más nuevo con la variable PYTHON, ej.:" >&2
+    echo "  PYTHON=/usr/bin/python3.11 ./scripts/build_linux.sh" >&2
+    exit 1
+fi
+
 echo "Creando entorno virtual..."
-python3 -m venv .venv-build
+"$PYTHON" -m venv .venv-build
 
 echo "Instalando dependencias..."
 .venv-build/bin/pip install --upgrade pip
