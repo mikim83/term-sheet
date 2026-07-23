@@ -102,8 +102,14 @@ def load_workbook(path: str) -> Workbook:
                 else:
                     number_format = XLSX_CODE_TO_KEY.get(xl_format, xl_format if xl_format != "General" else None)
                 font_color = _rgb_from_xl_color(xl_cell.font.color) if xl_cell.font else None
+                # xl_cell.fill puede ser PatternFill (relleno sólido, lo que
+                # soportamos) o GradientFill (degradado de Excel) — este
+                # último no tiene patternType/fgColor, así que un degradado
+                # simplemente no se importa como bg_color (CellFormat solo
+                # admite un color plano, no hay a qué mapearlo 1:1) en vez de
+                # reventar al leer el archivo.
                 bg_color = None
-                if xl_cell.fill and xl_cell.fill.patternType == "solid":
+                if xl_cell.fill and getattr(xl_cell.fill, "patternType", None) == "solid":
                     bg_color = _rgb_from_xl_color(xl_cell.fill.fgColor)
                 border_style, border_color = _border_style_and_color(xl_cell)
                 cell.fmt = CellFormat(
