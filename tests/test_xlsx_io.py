@@ -130,3 +130,28 @@ def test_load_workbook_reads_colors_from_a_real_excel_file():
         assert b1.fmt.font_color is None
         assert b1.fmt.bg_color is None
         assert b1.fmt.border_style is None  # el archivo externo no le puso borde
+
+
+def test_load_workbook_does_not_crash_on_gradient_fill():
+    """Regresión: un archivo real (p.ej. plantillas descargadas) puede tener
+    celdas con relleno degradado (GradientFill), que a diferencia de
+    PatternFill no tiene el atributo `patternType` — cargarlo no debe reventar,
+    simplemente no se importa un color de fondo plano para esa celda."""
+    from openpyxl import Workbook as XlWorkbook
+    from openpyxl.styles import GradientFill
+
+    xl_wb = XlWorkbook()
+    ws = xl_wb.active
+    ws.title = "Hoja1"
+    ws["A1"] = "con degradado"
+    ws["A1"].fill = GradientFill(stop=("FFFFFFFF", "FF000000"))
+    ws["B1"] = "normal"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        path = str(Path(tmp) / "gradient.xlsx")
+        xl_wb.save(path)
+
+        wb = load_workbook(path)  # no debe lanzar AttributeError
+        sheet = wb.sheet_by_name("Hoja1")
+        assert sheet.get_cell(1, 1).fmt.bg_color is None
+        assert sheet.get_cell(1, 2).fmt.bg_color is None
